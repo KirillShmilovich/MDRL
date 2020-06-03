@@ -7,13 +7,18 @@ import gym
 
 class SimEnv(gym.Env):
     """Custom Environment that follows gym interface"""
-    metadata = {'render.modes': ['human']}
 
-    def __init__(self,
-                 min_temp=1 * u.kelvin,
-                 max_temp=500 * u.kelvin,
-                 delta=5 * u.kelvin,
-                 **kwargs):
+    metadata = {"render.modes": ["human"]}
+
+    def __init__(
+        self,
+        min_temp=1 * u.kelvin,
+        max_temp=500 * u.kelvin,
+        delta=5 * u.kelvin,
+        episode_duration=1000,
+        report=False,
+        **kwargs
+    ):
         super(SimEnv, self).__init__()
         # Define action and observation space
         # They must be gym.spaces objects
@@ -21,35 +26,41 @@ class SimEnv(gym.Env):
         self.min_temp = min_temp
         self.max_temp = max_temp
         self.delta = delta
-        self.action_space = spaces.Box(low=-1.,
-                                       high=1.,
-                                       shape=(1, ),
-                                       dtype=np.float32)
+        self.episode_duration = episode_duration
+        self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(1,), dtype=np.float32)
         # Example for using image as input:
-        self.observation_space = spaces.Box(low=0.,
-                                            high=1.,
-                                            shape=(74, ),
-                                            dtype=np.float32)
+        self.observation_space = spaces.Box(
+            low=0.0, high=1.0, shape=(74,), dtype=np.float32
+        )
 
-        self.reset()
+        self.reset(report=report)
 
     def step(self, action):
         n_steps = 500
-        k = 20.
+        k = 20.0
 
-        deltaT = self.delta * action
+        # Change temp
+        deltaT = self.delta * action[0]
         new_temp = self._temp_clamp(self.sim.temperature + deltaT)
         self.sim.changeTemp(new_temp)
 
+        # Run sim and update episode step
         self.sim.sim(n_steps)
+        self.episode_step += 1
 
+        # Get the state
         observation = self._state()
 
+        # Calculate reward
         n_clusters = self.sim.n_clusters()
-        reward = -(1 - n_clusters / k)**2
+        reward = -((1 - n_clusters / k) ** 2)
+        info = {"n_clusters": n_clusters}
 
-        done = 0
-        info = {'n_clusters': n_clusters}
+        # Check if done
+        if self.episode_step >= self.episode_duration:
+            done = 1
+        else:
+            done = 0
 
         return observation, reward, done, info
 
@@ -65,23 +76,26 @@ class SimEnv(gym.Env):
         state = np.concatenate((state, self.sim.graphlet_features()))
         return state
 
-    def reset(self):
-        temp = np.random.uniform(
-            low=self.min_temp._value,
-            high=self.max_temp._value) * self.min_temp.unit
-        self.sim = LJSimualtion(temperature=temp)
+    def reset(self, report=False):
+        temp = (
+            np.random.uniform(low=self.min_temp._value, high=self.max_temp._value)
+            * self.min_temp.unit
+        )
+        self.sim = LJSimualtion(report=report, temperature=temp)
         observation = self._state()
+        self.episode_step = 0
         return observation  # reward, done, info can't be included
 
-    def render(self, mode='human'):
+    def render(self, mode="human"):
         pass
 
     def close(self):
         pass
 
 
-if __name__ == 'main':
+if __name__ == "main":
     from stable_baselines3.common.env_checker import check_env
+
     env = SimEnv()
     # If the environment don't follow the interface, an error will be thrown
     check_env(env, warn=True)
