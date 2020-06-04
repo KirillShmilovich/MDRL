@@ -7,6 +7,9 @@ from sys import stdout
 from featurizers import graphlet_featurizer
 from utils import get_n_clusters
 
+from scipy.spatial.distance import pdist
+from graphlets.utils import pbc
+
 
 class LJSimualtion:
     def __init__(
@@ -57,6 +60,13 @@ class LJSimualtion:
         if r_cut is None:
             r_cut = 1.15 * self.sigma.in_units_of(u.nanometers)._value
         return graphlet_featurizer(self.xyz, self.dims, r_cut=r_cut)
+
+    def pairwise_features(self):
+        xyz = self.xyz
+        dims = self.dims
+        d_max = np.sqrt(np.square(dims / 2.0).sum())
+        pairwise_dists = pdist(xyz, metric=pbc, dims=dims) / d_max
+        return pairwise_dists
 
     def n_clusters(self, r_cut=None):
         if r_cut is None:
