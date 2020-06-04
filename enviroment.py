@@ -30,7 +30,7 @@ class SimEnv(gym.Env):
         self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(1,), dtype=np.float32)
         # Example for using image as input:
         self.observation_space = spaces.Box(
-            low=0.0, high=1.0, shape=(74,), dtype=np.float32
+            low=0.0, high=1.0, shape=(4951,), dtype=np.float32
         )
 
         self.reset(report=report)
@@ -54,7 +54,12 @@ class SimEnv(gym.Env):
         # Calculate reward
         n_clusters = self.sim.n_clusters()
         reward = -((1 - n_clusters / k) ** 2)
-        info = {"n_clusters": n_clusters}
+        info = {}
+        self.info_dict = {
+            "n_clusters": n_clusters,
+            "temperature": self.sim.temperature,
+            "reward": reward,
+        }
 
         # Check if done
         if self.episode_step >= self.episode_duration:
@@ -73,7 +78,8 @@ class SimEnv(gym.Env):
 
     def _state(self):
         state = np.array([self._scale(self.sim.temperature)])
-        state = np.concatenate((state, self.sim.graphlet_features()))
+        # state = np.concatenate((state, self.sim.graphlet_features()))
+        state = np.concatenate((state, self.sim.pairwise_features()))
         return state
 
     def reset(self, report=False):
